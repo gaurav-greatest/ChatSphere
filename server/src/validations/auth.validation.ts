@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const registerSchema = z.object({
   username: z
     .string()
+    .trim()
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username cannot exceed 30 characters')
     .regex(
@@ -12,6 +13,7 @@ export const registerSchema = z.object({
     .transform((val) => val.toLowerCase()),
   email: z
     .string()
+    .trim()
     .email('Please provide a valid email address')
     .transform((val) => val.toLowerCase()),
   password: z
@@ -30,12 +32,12 @@ export const registerSchema = z.object({
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Please provide a valid email address'),
+  email: z.string().trim().email('Please provide a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Please provide a valid email address'),
+  email: z.string().trim().email('Please provide a valid email address'),
 });
 
 export const resetPasswordSchema = z.object({
