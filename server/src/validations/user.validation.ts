@@ -23,6 +23,6 @@ export const userIdParamSchema = z.object({
 
 export const searchUserQuerySchema = z.object({
   q: z.string().min(1, 'Search query cannot be empty'),
-  page: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(1).default(1)),
-  limit: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(1).max(100).default(20)),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
