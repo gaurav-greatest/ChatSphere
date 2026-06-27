@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { fetchChats, setActiveChatId, clearUnreadCount } from '@/features/chat/chatSlice';
+import { fetchChats, setActiveChatId, clearUnreadCount, createDirectChat } from '@/features/chat/chatSlice';
 import Avatar from '../ui/Avatar';
 import { formatChatListTime } from '@/utils/formatDate';
-import { Search, VolumeX, Archive, MessageSquare } from 'lucide-react';
+import { Search, VolumeX, Archive, MessageSquare, UserPlus, Loader2 } from 'lucide-react';
+import api from '@/lib/axios';
+import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 
 interface ChatListProps {
@@ -17,10 +19,43 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
   
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'direct' | 'group' | 'archived'>('all');
+  const [globalUsers, setGlobalUsers] = useState<any[]>([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
 
   useEffect(() => {
     dispatch(fetchChats());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!search || search.trim().length < 2) {
+      setGlobalUsers([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        setIsSearchingGlobal(true);
+        const { data } = await api.get(`/users/search?q=${search}`);
+        setGlobalUsers(data.data || []);
+      } catch (err) {
+        console.error('Failed to search global users', err);
+      } finally {
+        setIsSearchingGlobal(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search]);
+
+  const handleStartNewChat = async (userId: string) => {
+    try {
+      await dispatch(createDirectChat(userId)).unwrap();
+      setSearch('');
+      setGlobalUsers([]);
+      if (onSelectChat) onSelectChat();
+    } catch (err: any) {
+      toast.error(err || 'Failed to start chat');
+    }
+  };
 
   const handleChatSelect = (chatId: string) => {
     dispatch(setActiveChatId(chatId));
@@ -170,6 +205,54 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
               </div>
             );
           })
+        )}
+
+        {/* ─── Global Users Search Results ───────────────────────── */}
+        {search.trim().length >= 2 && (
+          <div className="mt-2 pb-4">
+            <h4 className="text-[10px] font-bold text-surface-400 uppercase tracking-wider px-4 mb-2">
+              Global Search
+            </h4>
+            {isSearchingGlobal ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 text-primary-500 animate-spin" />
+              </div>
+            ) : globalUsers.length === 0 ? (
+              <p className="text-xs text-surface-400 px-4 pb-4">No users found for "{search}"</p>
+            ) : (
+              globalUsers.map((user) => {
+                // Check if chat already exists
+                const existingChat = chats.find(
+                  (c) => c.type === 'direct' && c.members.some((m: any) => m._id === user._id)
+                );
+
+                return (
+                  <div
+                    key={user._id}
+                    onClick={() => {
+                      if (existingChat) {
+                        handleChatSelect(existingChat._id);
+                      } else {
+                        handleStartNewChat(user._id);
+                      }
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer select-none transition-colors hover:bg-surface-850 border-l-3 border-transparent"
+                  >
+                    <Avatar src={user.avatar} name={user.displayName || user.username} size="lg" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-surface-100 truncate">
+                          {user.displayName || user.username}
+                        </h3>
+                      </div>
+                      <p className="text-xs text-surface-400 truncate">@{user.username}</p>
+                    </div>
+                    {!existingChat && <UserPlus className="w-4 h-4 text-primary-500 shrink-0" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
       </div>
     </div>
