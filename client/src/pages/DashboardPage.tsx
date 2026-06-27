@@ -6,13 +6,13 @@ import { useNavigate } from 'react-router-dom';
 import { Settings, LogOut, MessageSquare, Bell } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { logout } from '@/features/auth/authSlice';
-import { UserButton } from '@clerk/clerk-react';
 import api from '@/lib/axios';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
   
   // Wire up socket list listeners globally inside Dashboard on load
   useSocket();
@@ -75,8 +75,8 @@ export default function DashboardPage() {
             <LogOut className="w-5 h-5" />
           </button>
 
-          <div className="flex items-center justify-center w-10 h-10">
-            <UserButton />
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold cursor-pointer hover:bg-primary-500 transition-colors">
+            {user?.displayName?.charAt(0)?.toUpperCase() || 'U'}
           </div>
         </div>
       </nav>
