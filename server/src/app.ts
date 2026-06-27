@@ -8,7 +8,6 @@ import hpp from 'hpp';
 import env from './config/env.js';
 import routes from './routes/index.js';
 import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middleware.js';
-import { clerkMiddleware } from '@clerk/express';
 import { defaultLimiter } from './middlewares/rate-limit.middleware.js';
 import { logger } from './utils/logger.js';
 
@@ -35,7 +34,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── Cookie Parser ──────────────────────────────────────────
 app.use(cookieParser());
-app.use(clerkMiddleware());
 
 // ─── Data Sanitization ─────────────────────────────────────
 app.use(mongoSanitize()); // Prevent NoSQL injection

@@ -8,14 +8,6 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// Bridge custom keys to Clerk environment variables dynamically
-if (process.env.JWT_ACCESS_SECRET?.startsWith('pk_')) {
-  process.env.CLERK_PUBLISHABLE_KEY = process.env.JWT_ACCESS_SECRET;
-}
-if (process.env.JWT_REFRESH_SECRET?.startsWith('sk_')) {
-  process.env.CLERK_SECRET_KEY = process.env.JWT_REFRESH_SECRET;
-}
-
 const env = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',

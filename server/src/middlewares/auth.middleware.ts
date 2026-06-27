@@ -1,11 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
+import { verifyAccessToken } from '../utils/token.js';
 import { ApiError } from '../utils/api-error.js';
 import { ERROR_MESSAGES } from '../constants/error-messages.js';
-import { getAuth, clerkClient } from '@clerk/express';
-import User from '../models/user.model.js';
-import { logger } from '../utils/logger.js';
 
-// Extend Express Request to include authenticated user details
+// Extend Express Request to include authenticated user
 declare global {
   namespace Express {
     interface Request {
@@ -16,62 +14,26 @@ declare global {
 }
 
 /**
- * Syncs the Clerk authenticated user with the local Mongoose Database (JIT Provisioning).
- */
-const getOrCreateLocalUser = async (clerkUserId: string): Promise<{ id: string; email: string }> => {
-  // 1. Check if user already exists
-  let user = await User.findOne({ clerkId: clerkUserId });
-  
-  if (user) {
-    return { id: user._id.toString(), email: user.email };
-  }
-
-  // 2. JIT User Provisioning: Fetch user metadata from Clerk
-  try {
-    const clerkUser = await clerkClient.users.getUser(clerkUserId);
-    const email = clerkUser.emailAddresses[0]?.emailAddress;
-    if (!email) {
-      throw ApiError.badRequest('Clerk account has no primary email address');
-    }
-
-    // Clerk username might be null if registered via OAuth/phone
-    const username = clerkUser.username || `clerk_${clerkUserId.substring(5, 15)}`;
-    const displayName = `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || username;
-
-    user = await User.create({
-      clerkId: clerkUserId,
-      email,
-      username: username.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
-      displayName,
-      provider: 'clerk',
-      isEmailVerified: true,
-      avatar: clerkUser.imageUrl,
-    });
-
-    logger.info(`JIT Provisioned local database user: ${email} (clerkId: ${clerkUserId})`);
-    return { id: user._id.toString(), email: user.email };
-  } catch (err: any) {
-    logger.error(`Failed to provision user for clerkUserId ${clerkUserId}:`, err);
-    throw ApiError.internal('Authentication user syncing failed');
-  }
-};
-
-/**
  * Authentication middleware.
- * Verifies Clerk token, provisions user locally if needed, and attaches userId.
+ * Extracts JWT from Authorization header, verifies it, and attaches userId to request.
  */
-export const authenticate = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+export const authenticate = (req: Request, _res: Response, next: NextFunction): void => {
   try {
-    const auth = getAuth(req);
-    
-    if (!auth || !auth.userId) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw ApiError.unauthorized(ERROR_MESSAGES.TOKEN_REQUIRED);
     }
 
-    const localUser = await getOrCreateLocalUser(auth.userId);
-    req.userId = localUser.id;
-    req.userEmail = localUser.email;
-    
+    const token = authHeader.split(' ')[1];
+
+    if (!token) {
+      throw ApiError.unauthorized(ERROR_MESSAGES.TOKEN_REQUIRED);
+    }
+
+    const decoded = verifyAccessToken(token);
+    req.userId = decoded.userId;
+    req.userEmail = decoded.email;
     next();
   } catch (error) {
     if (error instanceof ApiError) {
@@ -83,16 +45,20 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
 };
 
 /**
- * Optional authentication — attaches authenticated local userId if valid Clerk token is present.
+ * Optional authentication — doesn't fail if no token is present,
+ * but attaches userId if a valid token is provided.
  */
-export const optionalAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+export const optionalAuth = (req: Request, _res: Response, next: NextFunction): void => {
   try {
-    const auth = getAuth(req);
-    
-    if (auth && auth.userId) {
-      const localUser = await getOrCreateLocalUser(auth.userId);
-      req.userId = localUser.id;
-      req.userEmail = localUser.email;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      if (token) {
+        const decoded = verifyAccessToken(token);
+        req.userId = decoded.userId;
+        req.userEmail = decoded.email;
+      }
     }
     next();
   } catch {
