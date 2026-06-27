@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  # ─── MongoDB ─────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: chatsphere-mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: chatsphere
+    networks:
+      - chatsphere-network
+
+  # ─── Redis ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: chatsphere-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - chatsphere-network
+
+  # ─── Backend ─────────────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: chatsphere-server
+    restart: unless-stopped
+    ports:
+      - '5000:5000'
+    env_file:
+      - ./server/.env
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/chatsphere
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - chatsphere-network
+
+  # ─── Frontend + Nginx ───────────────────────────────────
+  client:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    container_name: chatsphere-client
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    depends_on:
+      - server
+    networks:
+      - chatsphere-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  chatsphere-network:
+    driver: bridge

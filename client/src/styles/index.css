@@ -1,0 +1,201 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ─── ChatSphere Design System ─── Tailwind CSS v4 Theme ───────── */
+@theme {
+  /* Color Palette — Deep indigo/violet primary with slate neutrals */
+  --color-primary-50: oklch(0.97 0.02 280);
+  --color-primary-100: oklch(0.93 0.04 280);
+  --color-primary-200: oklch(0.87 0.07 280);
+  --color-primary-300: oklch(0.78 0.12 280);
+  --color-primary-400: oklch(0.68 0.17 278);
+  --color-primary-500: oklch(0.58 0.22 275);
+  --color-primary-600: oklch(0.50 0.22 275);
+  --color-primary-700: oklch(0.43 0.19 275);
+  --color-primary-800: oklch(0.37 0.15 275);
+  --color-primary-900: oklch(0.31 0.12 275);
+  --color-primary-950: oklch(0.22 0.09 275);
+
+  /* Accent — Emerald for online/success states */
+  --color-accent-400: oklch(0.75 0.18 160);
+  --color-accent-500: oklch(0.65 0.19 160);
+  --color-accent-600: oklch(0.55 0.17 160);
+
+  /* Surface colors — Dark mode first */
+  --color-surface-50: oklch(0.98 0.005 260);
+  --color-surface-100: oklch(0.95 0.01 260);
+  --color-surface-200: oklch(0.90 0.01 260);
+  --color-surface-300: oklch(0.82 0.01 260);
+  --color-surface-700: oklch(0.30 0.02 260);
+  --color-surface-800: oklch(0.23 0.02 260);
+  --color-surface-850: oklch(0.19 0.02 260);
+  --color-surface-900: oklch(0.16 0.02 265);
+  --color-surface-950: oklch(0.12 0.02 265);
+
+  /* Danger */
+  --color-danger-400: oklch(0.70 0.19 25);
+  --color-danger-500: oklch(0.60 0.21 25);
+  --color-danger-600: oklch(0.52 0.19 25);
+
+  /* Warning */
+  --color-warning-400: oklch(0.80 0.16 85);
+  --color-warning-500: oklch(0.75 0.17 85);
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Border Radius */
+  --radius-chat: 1.125rem;
+
+  /* Shadows */
+  --shadow-glow: 0 0 20px oklch(0.58 0.22 275 / 0.15);
+  --shadow-panel: 0 1px 3px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.08);
+  --shadow-elevated: 0 10px 30px oklch(0 0 0 / 0.2), 0 4px 12px oklch(0 0 0 / 0.1);
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+  --animate-slide-in-left: slide-in-left 0.25s ease-out;
+  --animate-slide-in-right: slide-in-right 0.25s ease-out;
+  --animate-scale-in: scale-in 0.2s ease-out;
+  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-bounce-in: bounce-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─── Keyframe Animations ──────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes bounce-in {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+/* ─── Base Styles ──────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Dark mode root */
+.dark {
+  color-scheme: dark;
+}
+
+/* ─── Scrollbar Styling ────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.45 0.02 260);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.55 0.02 260);
+}
+
+/* ─── Selection ────────────────────────────────────────────────── */
+::selection {
+  background: oklch(0.58 0.22 275 / 0.3);
+  color: white;
+}
+
+/* ─── Typing Indicator Dots ────────────────────────────────────── */
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ─── Skeleton Loading ─────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(0.25 0.02 260) 25%,
+    oklch(0.30 0.02 260) 50%,
+    oklch(0.25 0.02 260) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ─── Glass Effect ─────────────────────────────────────────────── */
+.glass {
+  background: oklch(0.16 0.02 265 / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid oklch(0.30 0.02 260 / 0.5);
+}
+
+/* ─── Message Bubble Tails ─────────────────────────────────────── */
+.bubble-sent {
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-received {
+  border-bottom-left-radius: 4px;
+}

@@ -1,0 +1,42 @@
+# Build stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+COPY shared/package*.json ./shared/
+COPY server/package*.json ./server/
+
+RUN npm ci --workspace=shared --workspace=server
+
+COPY shared/ ./shared/
+COPY server/ ./server/
+COPY tsconfig.base.json ./
+
+RUN npm run build -w shared
+RUN npm run build -w server
+
+# Production stage
+FROM node:20-alpine AS production
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S chatsphere -u 1001
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/shared/package*.json ./shared/
+COPY --from=builder /app/server/package*.json ./server/
+COPY --from=builder /app/shared/dist/ ./shared/dist/
+COPY --from=builder /app/server/dist/ ./server/dist/
+
+RUN npm ci --workspace=shared --workspace=server --omit=dev
+
+USER chatsphere
+
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/v1/health || exit 1
+
+CMD ["node", "server/dist/server.js"]
