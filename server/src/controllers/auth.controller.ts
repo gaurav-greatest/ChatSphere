@@ -9,7 +9,7 @@ const REFRESH_TOKEN_COOKIE = 'chatsphere_refresh_token';
 const getRefreshTokenCookieOptions = () => ({
   httpOnly: true,
   secure: env.isProduction,
-  sameSite: env.isProduction ? ('strict' as const) : ('lax' as const),
+  sameSite: env.isProduction ? ('none' as const) : ('lax' as const),
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/api/v1/auth',
 });
@@ -83,7 +83,7 @@ export const logout = asyncHandler(async (req: Request, res: Response) => {
   res.clearCookie(REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
     secure: env.isProduction,
-    sameSite: env.isProduction ? ('strict' as const) : ('lax' as const),
+    sameSite: env.isProduction ? ('none' as const) : ('lax' as const),
     path: '/api/v1/auth',
   });
 
