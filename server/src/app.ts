@@ -55,6 +55,11 @@ app.use((req, _res, next) => {
   next();
 });
 
+// ─── Health Check Endpoint ──────────────────────────────────
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'success', message: 'ChatSphere API is running successfully.' });
+});
+
 // ─── API Routes ─────────────────────────────────────────────
 app.use('/api/v1', routes);
 
