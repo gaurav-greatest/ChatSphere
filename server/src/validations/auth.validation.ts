@@ -6,8 +6,8 @@ export const registerSchema = z.object({
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username cannot exceed 30 characters')
     .regex(
-      /^[a-z0-9_]+$/,
-      'Username can only contain lowercase letters, numbers, and underscores',
+      /^[a-zA-Z0-9_]+$/,
+      'Username can only contain letters, numbers, and underscores',
     )
     .transform((val) => val.toLowerCase()),
   email: z
@@ -19,7 +19,7 @@ export const registerSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password cannot exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-])/,
       'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     ),
   displayName: z
@@ -44,7 +44,7 @@ export const resetPasswordSchema = z.object({
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password cannot exceed 128 characters')
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^_\-])/,
       'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     ),
 });
