@@ -52,6 +52,21 @@ export const sendNewMessage = createAsyncThunk(
   },
 );
 
+export const deleteExistingMessage = createAsyncThunk(
+  'messages/deleteMessage',
+  async (
+    { messageId, chatId }: { messageId: string; chatId: string },
+    { rejectWithValue },
+  ) => {
+    try {
+      await api.delete(`/messages/${messageId}`);
+      return { messageId, chatId };
+    } catch (err: any) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to delete message');
+    }
+  },
+);
+
 const messageSlice = createSlice({
   name: 'messages',
   initialState,
@@ -138,6 +153,18 @@ const messageSlice = createSlice({
         const exists = state.messagesByChat[chatId].some((m) => m._id === action.payload._id);
         if (!exists) {
           state.messagesByChat[chatId].push(action.payload);
+        }
+      })
+      .addCase(deleteExistingMessage.fulfilled, (state, action) => {
+        const { chatId, messageId } = action.payload;
+        const list = state.messagesByChat[chatId];
+        if (list) {
+          const msg = list.find((m) => m._id === messageId);
+          if (msg) {
+            msg.content = 'This message was deleted';
+            msg.isDeleted = true;
+            msg.attachments = [];
+          }
         }
       });
   },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { fetchMessages, sendNewMessage } from '@/features/messages/messageSlice';
+import { fetchMessages, sendNewMessage, deleteExistingMessage } from '@/features/messages/messageSlice';
 import Avatar from '../ui/Avatar';
 import { formatMessageTime } from '@/utils/formatDate';
 import {
@@ -9,17 +9,20 @@ import {
   MoreVertical,
   Reply,
   Undo2,
-  Check,
+  CheckCheck,
   Paperclip,
   X,
   FileText,
   Loader2,
   Download,
+  Trash2,
 } from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import { cn } from '@/utils/cn';
 import api from '@/lib/axios';
 import toast from 'react-hot-toast';
+import { getSocket } from '@/lib/socket';
+import { SOCKET_EVENTS } from '@chatsphere/shared';
 
 interface ChatWindowProps {
   onBack?: () => void;
@@ -40,10 +43,12 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
   const [replyMessage, setReplyMessage] = useState<any | null>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const activeChat = chats.find((c) => c._id === activeChatId);
 
@@ -53,13 +58,43 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
     }
   }, [activeChatId, dispatch]);
 
+  // Socket listeners for Typing Indicators & Read Receipts
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !activeChatId) return;
+
+    const handleUserTyping = (data: { chatId: string; userId: string }) => {
+      if (data.chatId === activeChatId && data.userId !== currentUser?._id) {
+        setTypingUsers((prev) => ({ ...prev, [data.userId]: true }));
+      }
+    };
+
+    const handleUserStopTyping = (data: { chatId: string; userId: string }) => {
+      if (data.chatId === activeChatId) {
+        setTypingUsers((prev) => {
+          const updated = { ...prev };
+          delete updated[data.userId];
+          return updated;
+        });
+      }
+    };
+
+    socket.on(SOCKET_EVENTS.USER_TYPING, handleUserTyping);
+    socket.on(SOCKET_EVENTS.USER_STOP_TYPING, handleUserStopTyping);
+
+    return () => {
+      socket.off(SOCKET_EVENTS.USER_TYPING, handleUserTyping);
+      socket.off(SOCKET_EVENTS.USER_STOP_TYPING, handleUserStopTyping);
+    };
+  }, [activeChatId, currentUser?._id]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, typingUsers]);
 
   if (!activeChatId || !activeChat) {
     return (
@@ -98,6 +133,21 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
   };
 
   const chatMeta = getChatDetails();
+  const someoneIsTyping = Object.keys(typingUsers).length > 0;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setContent(e.target.value);
+
+    const socket = getSocket();
+    if (socket && activeChatId) {
+      socket.emit(SOCKET_EVENTS.TYPING_START, { chatId: activeChatId });
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit(SOCKET_EVENTS.TYPING_STOP, { chatId: activeChatId });
+      }, 3000);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -144,6 +194,12 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
     e.preventDefault();
     if (!content.trim() && attachments.length === 0) return;
 
+    const socket = getSocket();
+    if (socket && activeChatId) {
+      socket.emit(SOCKET_EVENTS.TYPING_STOP, { chatId: activeChatId });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+
     dispatch(
       sendNewMessage({
         chatId: activeChatId,
@@ -158,6 +214,15 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
     setAttachments([]);
     setReplyMessage(null);
     setShowEmoji(false);
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      await dispatch(deleteExistingMessage({ messageId, chatId: activeChatId })).unwrap();
+      toast.success('Message deleted');
+    } catch (err: any) {
+      toast.error(err || 'Failed to delete message');
+    }
   };
 
   const handleEmojiClick = (emojiData: any) => {
@@ -194,10 +259,10 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
             <p
               className={cn(
                 'text-xxs truncate',
-                chatMeta.isOnline ? 'text-accent-500' : 'text-surface-300',
+                someoneIsTyping ? 'text-primary-400 font-bold animate-pulse' : chatMeta.isOnline ? 'text-accent-500' : 'text-surface-300',
               )}
             >
-              {chatMeta.status}
+              {someoneIsTyping ? 'typing...' : chatMeta.status}
             </p>
           </div>
         </div>
@@ -226,6 +291,7 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
         ) : (
           messages.map((msg: any) => {
             const isMe = msg.sender?._id === currentUser?._id;
+            const isRead = msg.readBy && msg.readBy.length > 1;
 
             return (
               <div
@@ -245,13 +311,15 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
                 <div
                   className={cn(
                     'px-4 py-2.5 rounded-2xl relative group',
-                    isMe
+                    msg.isDeleted
+                      ? 'bg-surface-900 text-surface-400 italic rounded-2xl border border-surface-800'
+                      : isMe
                       ? 'bg-primary-600 text-white rounded-tr-none'
                       : 'bg-surface-900 text-surface-100 rounded-tl-none border border-surface-800',
                   )}
                 >
                   {/* Reply preview label inside message bubble */}
-                  {msg.replyToMessage && (
+                  {msg.replyToMessage && !msg.isDeleted && (
                     <div className="bg-black/10 px-2 py-1 border-l-2 border-primary-300 rounded mb-1.5 text-xs">
                       <p className="font-semibold text-[10px] text-white">Replying to msg</p>
                       <p className="truncate opacity-75">{msg.replyToMessage.content}</p>
@@ -259,7 +327,7 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
                   )}
 
                   {/* Rich Media Attachments */}
-                  {msg.attachments && msg.attachments.length > 0 && (
+                  {!msg.isDeleted && msg.attachments && msg.attachments.length > 0 && (
                     <div className="space-y-2 mb-2">
                       {msg.attachments.map((att: any, idx: number) => {
                         if (att.type === 'image' || att.mimeType?.startsWith('image/')) {
@@ -312,24 +380,60 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
                     <span className="text-[9px] opacity-60 text-right">
                       {formatMessageTime(msg.createdAt)}
                     </span>
-                    {isMe && <Check className="w-3 h-3 opacity-60" />}
+                    {isMe && !msg.isDeleted && (
+                      isRead ? (
+                        <span title="Read"><CheckCheck className="w-3.5 h-3.5 text-sky-400 font-bold" /></span>
+                      ) : (
+                        <span title="Sent/Delivered"><CheckCheck className="w-3.5 h-3.5 opacity-60" /></span>
+                      )
+                    )}
                   </div>
 
-                  {/* Reply actions overlay on hover */}
-                  <button
-                    onClick={() => setReplyMessage(msg)}
-                    className={cn(
-                      'absolute top-1/2 -translate-y-1/2 p-1.5 bg-surface-800 hover:bg-surface-700 text-white rounded-lg shadow border border-surface-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200',
-                      isMe ? '-left-10' : '-right-10',
-                    )}
-                  >
-                    <Reply className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Message actions overlay on hover */}
+                  {!msg.isDeleted && (
+                    <div
+                      className={cn(
+                        'absolute top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10',
+                        isMe ? '-left-16' : '-right-10',
+                      )}
+                    >
+                      <button
+                        onClick={() => setReplyMessage(msg)}
+                        className="p-1.5 bg-surface-800 hover:bg-surface-700 text-white rounded-lg shadow border border-surface-700"
+                        title="Reply"
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
+
+                      {isMe && (
+                        <button
+                          onClick={() => handleDeleteMessage(msg._id)}
+                          className="p-1.5 bg-surface-800 hover:bg-red-950 text-red-400 hover:text-red-300 rounded-lg shadow border border-surface-700"
+                          title="Delete message"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })
         )}
+
+        {/* Typing indicator bubble in message feed */}
+        {someoneIsTyping && (
+          <div className="flex items-center gap-2 text-xs text-surface-400 italic bg-surface-900/60 p-2.5 rounded-2xl max-w-xs border border-surface-800/50 animate-pulse">
+            <div className="flex gap-1">
+              <span className="w-1.5 h-1.5 bg-primary-400 rounded-full animate-bounce" />
+              <span className="w-1.5 h-1.5 bg-primary-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+              <span className="w-1.5 h-1.5 bg-primary-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+            </div>
+            <span>Someone is typing...</span>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -417,7 +521,7 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
         <input
           type="text"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleInputChange}
           placeholder={attachments.length > 0 ? 'Add a caption...' : 'Type a message...'}
           className="flex-1 bg-surface-850 border border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-100 placeholder-surface-300/40 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
         />
