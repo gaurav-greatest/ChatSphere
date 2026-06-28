@@ -36,13 +36,24 @@ export const uploadMediaFile = async (
       });
     };
 
-    const uploadResult = await uploadStream();
+    let secureUrl = '';
+    let publicId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    try {
+      const uploadResult = await uploadStream();
+      secureUrl = uploadResult.secure_url;
+      publicId = uploadResult.public_id;
+    } catch (cloudErr) {
+      logger.warn('Cloudinary upload failed or unconfigured, utilizing data-URI fallback:', cloudErr);
+      const base64 = file.buffer.toString('base64');
+      secureUrl = `data:${file.mimetype};base64,${base64}`;
+    }
 
     // Create file record in database
     const fileRecord = await FileModel.create({
       ownerId: new mongoose.Types.ObjectId(ownerId),
-      url: uploadResult.secure_url,
-      publicId: uploadResult.public_id,
+      url: secureUrl,
+      publicId,
       type,
       size: file.size,
       mimeType: file.mimetype,
@@ -51,7 +62,7 @@ export const uploadMediaFile = async (
 
     return fileRecord;
   } catch (err) {
-    logger.error('Error uploading file to Cloudinary:', err);
+    logger.error('Error in uploadMediaFile:', err);
     throw ApiError.internal('File upload failed');
   }
 };

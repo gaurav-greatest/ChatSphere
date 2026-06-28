@@ -3,10 +3,11 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchChats, setActiveChatId, clearUnreadCount, createDirectChat } from '@/features/chat/chatSlice';
 import Avatar from '../ui/Avatar';
 import { formatChatListTime } from '@/utils/formatDate';
-import { Search, VolumeX, Archive, MessageSquare, UserPlus, Loader2 } from 'lucide-react';
+import { Search, VolumeX, Archive, MessageSquare, UserPlus, Loader2, Users } from 'lucide-react';
 import api from '@/lib/axios';
 import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';
+import CreateGroupModal from './CreateGroupModal';
 
 interface ChatListProps {
   onSelectChat?: () => void;
@@ -21,6 +22,7 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
   const [filter, setFilter] = useState<'all' | 'direct' | 'group' | 'archived'>('all');
   const [globalUsers, setGlobalUsers] = useState<any[]>([]);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
 
   useEffect(() => {
     dispatch(fetchChats());
@@ -110,23 +112,36 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
         </div>
       </div>
 
-      {/* ─── Filters tabs ──────────────────────────────────────── */}
-      <div className="flex px-4 gap-2 mb-3">
-        {(['all', 'direct', 'group', 'archived'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors',
-              filter === tab
-                ? 'bg-primary-600 text-white'
-                : 'bg-surface-850 hover:bg-surface-800 text-surface-300',
-            )}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* ─── Filters & Actions ─────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 mb-3 gap-2">
+        <div className="flex gap-1.5 overflow-x-auto">
+          {(['all', 'direct', 'group', 'archived'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap',
+                filter === tab
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-surface-850 hover:bg-surface-800 text-surface-300',
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setIsGroupModalOpen(true)}
+          title="Create New Group"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary-500/20 text-primary-300 hover:bg-primary-500 hover:text-white transition-all shrink-0 border border-primary-500/30"
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>New Group</span>
+        </button>
       </div>
+
+      <CreateGroupModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} />
 
       {/* ─── Chat Items List ───────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto space-y-0.5">

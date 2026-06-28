@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import Chat from '../models/chat.model.js';
 import { SOCKET_EVENTS } from '@chatsphere/shared';
 import { registerMessageHandlers } from '../sockets/handlers/message.handler.js';
+import { registerChatHandlers } from '../sockets/handlers/chat.handler.js';
 import { registerPresenceHandlers, handleDisconnect } from '../sockets/handlers/presence.handler.js';
 
 // Ephemeral in-memory mapping of user ID -> set of active Socket IDs.
@@ -56,6 +57,7 @@ export const configureSockets = (io: Server): void => {
 
       // Register feature-specific handlers
       registerMessageHandlers(io, socket);
+      registerChatHandlers(io, socket);
 
       // Disconnect event
       socket.on(SOCKET_EVENTS.DISCONNECT, async (reason) => {

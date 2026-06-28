@@ -49,6 +49,6 @@ export const searchMessageQuerySchema = z.object({
 });
 
 export const getMessagesQuerySchema = z.object({
-  page: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(1).default(1)),
-  limit: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(1).max(100).default(50)),
+  page: z.preprocess((val) => (val ? parseInt(val as string, 10) : 1), z.number().int().min(1).default(1)),
+  limit: z.preprocess((val) => (val ? parseInt(val as string, 10) : 50), z.number().int().min(1).max(100).default(50)),
 });

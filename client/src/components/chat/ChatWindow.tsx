@@ -3,9 +3,23 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { fetchMessages, sendNewMessage } from '@/features/messages/messageSlice';
 import Avatar from '../ui/Avatar';
 import { formatMessageTime } from '@/utils/formatDate';
-import { Send, Smile, MoreVertical, Reply, Undo2, Check } from 'lucide-react';
+import {
+  Send,
+  Smile,
+  MoreVertical,
+  Reply,
+  Undo2,
+  Check,
+  Paperclip,
+  X,
+  FileText,
+  Loader2,
+  Download,
+} from 'lucide-react';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import { cn } from '@/utils/cn';
+import api from '@/lib/axios';
+import toast from 'react-hot-toast';
 
 interface ChatWindowProps {
   onBack?: () => void;
@@ -16,15 +30,20 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
   const dispatch = useAppDispatch();
   const activeChatId = useAppSelector((state) => state.chat.activeChatId);
   const chats = useAppSelector((state) => state.chat.chats);
-  const messages = useAppSelector((state) => state.messages.messagesByChat[activeChatId || ''] || []);
+  const messages = useAppSelector(
+    (state) => state.messages.messagesByChat[activeChatId || ''] || [],
+  );
   const currentUser = useAppSelector((state) => state.auth.user);
-  
+
   const [content, setContent] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [replyMessage, setReplyMessage] = useState<any | null>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeChat = chats.find((c) => c._id === activeChatId);
 
@@ -50,7 +69,10 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
             <MessageSquareIcon className="w-10 h-10 text-primary-500 stroke-1" />
           </div>
           <h2 className="text-xl font-bold text-surface-100">Welcome to ChatSphere</h2>
-          <p className="text-sm">Select a conversation from the sidebar list or find contacts to start messaging in real-time.</p>
+          <p className="text-sm">
+            Select a conversation from the sidebar list or find contacts to start messaging in
+            real-time.
+          </p>
         </div>
       </div>
     );
@@ -77,19 +99,63 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
 
   const chatMeta = getChatDetails();
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let mediaType: 'image' | 'video' | 'document' | 'audio' = 'document';
+    if (file.type.startsWith('image/')) mediaType = 'image';
+    else if (file.type.startsWith('video/')) mediaType = 'video';
+    else if (file.type.startsWith('audio/')) mediaType = 'audio';
+
+    formData.append('type', mediaType);
+    if (activeChatId) formData.append('chatId', activeChatId);
+
+    try {
+      setIsUploadingMedia(true);
+      const { data } = await api.post('/media/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const uploadedFile = data.data;
+      const attachmentItem = {
+        url: uploadedFile.url,
+        publicId: uploadedFile.publicId,
+        type: uploadedFile.type,
+        size: uploadedFile.size,
+        name: file.name,
+        mimeType: uploadedFile.mimeType,
+      };
+
+      setAttachments((prev) => [...prev, attachmentItem]);
+      toast.success('Media file uploaded successfully');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to upload media');
+    } finally {
+      setIsUploadingMedia(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() && attachments.length === 0) return;
 
     dispatch(
       sendNewMessage({
         chatId: activeChatId,
         content: content.trim(),
+        type: attachments.length > 0 ? attachments[0].type : 'text',
+        attachments: attachments.length > 0 ? attachments : undefined,
         replyTo: replyMessage?._id,
       }),
     );
 
     setContent('');
+    setAttachments([]);
     setReplyMessage(null);
     setShowEmoji(false);
   };
@@ -100,6 +166,15 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-surface-950 relative overflow-hidden">
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
+      />
+
       {/* ─── Chat Window Header ─────────────────────────────────── */}
       <header className="h-16 flex items-center justify-between px-4 bg-surface-900 border-b border-surface-800 select-none z-10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -111,21 +186,31 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
               <ArrowLeftIcon className="w-5 h-5" />
             </button>
           )}
-          
+
           <Avatar src={chatMeta.avatar} name={chatMeta.name} isOnline={chatMeta.isOnline} size="md" />
-          
+
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-white truncate">{chatMeta.name}</h3>
-            <p className={cn('text-xxs truncate', chatMeta.isOnline ? 'text-accent-500' : 'text-surface-300')}>
+            <p
+              className={cn(
+                'text-xxs truncate',
+                chatMeta.isOnline ? 'text-accent-500' : 'text-surface-300',
+              )}
+            >
               {chatMeta.status}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-surface-200">
-          <button className="p-2 rounded-lg hover:bg-surface-800 transition-colors" onClick={onShowDetails}>
-            <MoreVertical className="w-5 h-5" />
-          </button>
+        <div className="flex items-center gap-1">
+          {onShowDetails && (
+            <button
+              onClick={onShowDetails}
+              className="p-2 text-surface-300 hover:text-white hover:bg-surface-800 rounded-xl transition-colors"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -141,11 +226,14 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
         ) : (
           messages.map((msg: any) => {
             const isMe = msg.sender?._id === currentUser?._id;
-            
+
             return (
               <div
                 key={msg._id}
-                className={cn('flex flex-col max-w-[75%]', isMe ? 'ml-auto items-end' : 'mr-auto items-start')}
+                className={cn(
+                  'flex flex-col max-w-[75%]',
+                  isMe ? 'ml-auto items-end' : 'mr-auto items-start',
+                )}
               >
                 {/* Sender Name if group chat */}
                 {activeChat.type === 'group' && !isMe && (
@@ -164,13 +252,61 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
                 >
                   {/* Reply preview label inside message bubble */}
                   {msg.replyToMessage && (
-                    <div className="bg-black/10 px-2 py-1 border-l-2 border-primary-300 rounded mb-1 text-xs">
+                    <div className="bg-black/10 px-2 py-1 border-l-2 border-primary-300 rounded mb-1.5 text-xs">
                       <p className="font-semibold text-[10px] text-white">Replying to msg</p>
                       <p className="truncate opacity-75">{msg.replyToMessage.content}</p>
                     </div>
                   )}
 
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  {/* Rich Media Attachments */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {msg.attachments.map((att: any, idx: number) => {
+                        if (att.type === 'image' || att.mimeType?.startsWith('image/')) {
+                          return (
+                            <img
+                              key={idx}
+                              src={att.url}
+                              alt={att.name || 'Image attachment'}
+                              className="max-w-full max-h-64 rounded-xl object-cover border border-black/10"
+                            />
+                          );
+                        }
+                        if (att.type === 'video' || att.mimeType?.startsWith('video/')) {
+                          return (
+                            <video
+                              key={idx}
+                              src={att.url}
+                              controls
+                              className="max-w-full max-h-64 rounded-xl border border-black/10"
+                            />
+                          );
+                        }
+                        if (att.type === 'audio' || att.mimeType?.startsWith('audio/')) {
+                          return (
+                            <audio key={idx} src={att.url} controls className="max-w-full" />
+                          );
+                        }
+                        return (
+                          <a
+                            key={idx}
+                            href={att.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-xs transition-colors border border-white/10"
+                          >
+                            <FileText className="w-5 h-5 shrink-0" />
+                            <span className="truncate flex-1 font-medium">{att.name || 'Document'}</span>
+                            <Download className="w-4 h-4 shrink-0 opacity-75" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {msg.content && (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  )}
 
                   <div className="flex items-center justify-end gap-1.5 mt-1">
                     <span className="text-[9px] opacity-60 text-right">
@@ -196,6 +332,27 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* ─── Pending Attachments bar ────────────────────────────── */}
+      {attachments.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-surface-900 border-t border-surface-800 overflow-x-auto">
+          {attachments.map((att, idx) => (
+            <div
+              key={idx}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 border border-surface-700 rounded-xl text-xs text-surface-100"
+            >
+              <FileText className="w-4 h-4 text-primary-400" />
+              <span className="truncate max-w-[150px]">{att.name}</span>
+              <button
+                onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}
+                className="hover:text-red-400"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ─── Reply message preview bar ─────────────────────────── */}
       {replyMessage && (
@@ -243,17 +400,32 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
           <Smile className="w-5.5 h-5.5" />
         </button>
 
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploadingMedia}
+          className="p-2 rounded-xl hover:bg-surface-800 text-surface-300 hover:text-white disabled:opacity-50 transition-colors"
+          title="Attach Media or File"
+        >
+          {isUploadingMedia ? (
+            <Loader2 className="w-5.5 h-5.5 animate-spin text-primary-500" />
+          ) : (
+            <Paperclip className="w-5.5 h-5.5" />
+          )}
+        </button>
+
         <input
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Type a message..."
+          placeholder={attachments.length > 0 ? 'Add a caption...' : 'Type a message...'}
           className="flex-1 bg-surface-850 border border-surface-700 rounded-xl px-4 py-2.5 text-sm text-surface-100 placeholder-surface-300/40 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-all"
         />
 
         <button
           type="submit"
-          className="p-2.5 bg-primary-600 hover:bg-primary-500 text-white rounded-xl shadow-glow active:scale-95 transition-all"
+          disabled={isUploadingMedia || (!content.trim() && attachments.length === 0)}
+          className="p-2.5 bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl shadow-glow active:scale-95 transition-all"
         >
           <Send className="w-4.5 h-4.5" />
         </button>
@@ -265,7 +437,14 @@ export default function ChatWindow({ onBack, onShowDetails }: ChatWindowProps) {
 // Inline fallback icons for routing
 function ArrowLeftIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      {...props}
+    >
       <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
     </svg>
   );
@@ -273,8 +452,19 @@ function ArrowLeftIcon(props: React.SVGProps<SVGSVGElement>) {
 
 function MessageSquareIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-2.561 3.019 4.5 4.5 0 0 0 3.636-.51c.647-.38 1.302-.19 1.895.12C9.478 20.074 10.709 20.25 12 20.25Z" />
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      {...props}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-2.561 3.019 4.5 4.5 0 0 0 3.636-.51c.647-.38 1.302-.19 1.895.12C9.478 20.074 10.709 20.25 12 20.25Z"
+      />
     </svg>
   );
 }

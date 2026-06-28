@@ -98,4 +98,34 @@ export const registerMessageHandlers = (io: Server, socket: Socket): void => {
       logger.error('Error handling message read receipt:', err);
     }
   });
+
+  // ─── Real-Time Reactions & Message Lifecycle ─────────────
+  socket.on(SOCKET_EVENTS.REACTION_ADD, async (data: { messageId: string; chatId: string; emoji: string }) => {
+    const { messageId, chatId, emoji } = data;
+    if (!messageId || !chatId || !emoji) return;
+    const roomName = `chat:${chatId}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.REACTION_ADDED, { messageId, chatId, userId, emoji });
+  });
+
+  socket.on(SOCKET_EVENTS.REACTION_REMOVE, async (data: { messageId: string; chatId: string; emoji: string }) => {
+    const { messageId, chatId, emoji } = data;
+    if (!messageId || !chatId || !emoji) return;
+    const roomName = `chat:${chatId}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.REACTION_REMOVED, { messageId, chatId, userId, emoji });
+  });
+
+  socket.on(SOCKET_EVENTS.MESSAGE_EDIT, async (data: { messageId: string; chatId: string; content: string }) => {
+    const { messageId, chatId, content } = data;
+    if (!messageId || !chatId || !content) return;
+    const roomName = `chat:${chatId}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.MESSAGE_EDITED, { messageId, chatId, content, editedAt: new Date() });
+  });
+
+  socket.on(SOCKET_EVENTS.MESSAGE_DELETE, async (data: { messageId: string; chatId: string }) => {
+    const { messageId, chatId } = data;
+    if (!messageId || !chatId) return;
+    const roomName = `chat:${chatId}`;
+    socket.to(roomName).emit(SOCKET_EVENTS.MESSAGE_DELETED, { messageId, chatId });
+  });
 };
+
