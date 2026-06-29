@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Notification from '../models/notification.model.js';
 import type { INotificationDocument } from '../models/notification.model.js';
 import { ApiError } from '../utils/api-error.js';
-import { NotificationType } from '@chatsphere/shared';
+import type { NotificationType } from '@chatsphere/shared';
 
 // ─── Create Notification ────────────────────────────────────
 export const createNotification = async (

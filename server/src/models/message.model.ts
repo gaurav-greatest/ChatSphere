@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, type Document } from 'mongoose';
 import { MessageType } from '@chatsphere/shared';
 
 export interface IMessageDocument extends Document {
